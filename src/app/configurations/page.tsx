@@ -1,62 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-
-type PrivacyFile = {
-  name: string;
-  size: number;
-  modified: Date;
-};
+import { usePrivacyConfigs, useDownloadConfig } from "@/hooks/usePrivacyConfig";
 
 export default function Configurations() {
-  const [files, setFiles] = useState<PrivacyFile[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const { data: files, isLoading, error } = usePrivacyConfigs();
+  const downloadConfig = useDownloadConfig();
 
-  useEffect(() => {
-    fetchConfigurations();
-  }, []);
-
-  const fetchConfigurations = async () => {
-    try {
-      const response = await fetch("/api/privacy-files");
-      if (!response.ok) throw new Error("Failed to fetch configurations");
-      const data = await response.json();
-      setFiles(data);
-      setError("");
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Failed to load configurations");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownload = async (filename: string) => {
-    try {
-      const response = await fetch(`/api/privacy-files/${filename}`);
-      if (!response.ok) throw new Error("Failed to download file");
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Failed to download configuration");
-      }
-    }
+  const handleDownload = (filename: string) => {
+    downloadConfig.mutate(filename);
   };
 
   return (
@@ -82,18 +34,20 @@ export default function Configurations() {
           </div>
         </div>
 
-        {error && (
+        {(error || downloadConfig.error) && (
           <div className="p-4 mb-6 rounded-md bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-            {error}
+            {error instanceof Error
+              ? error.message
+              : downloadConfig.error?.message || "An error occurred"}
           </div>
         )}
 
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-          {loading ? (
+          {isLoading ? (
             <div className="p-6 text-center text-gray-500 dark:text-gray-400">
               Loading configurations...
             </div>
-          ) : files.length === 0 ? (
+          ) : !files?.length ? (
             <div className="p-6 text-center text-gray-500 dark:text-gray-400">
               No configurations found.{" "}
               <Link
@@ -122,9 +76,10 @@ export default function Configurations() {
                     </div>
                     <button
                       onClick={() => handleDownload(file.name)}
-                      className="ml-4 px-4 py-2 text-sm font-medium text-green-600 bg-green-100 rounded-md hover:bg-green-200 dark:text-green-300 dark:bg-green-900 dark:hover:bg-green-800"
+                      disabled={downloadConfig.isPending}
+                      className="ml-4 px-4 py-2 text-sm font-medium text-green-600 bg-green-100 rounded-md hover:bg-green-200 dark:text-green-300 dark:bg-green-900 dark:hover:bg-green-800 disabled:opacity-50"
                     >
-                      Download
+                      {downloadConfig.isPending ? "Downloading..." : "Download"}
                     </button>
                   </div>
                 </li>

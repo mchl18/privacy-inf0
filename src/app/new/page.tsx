@@ -3,12 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PRIVACY_API_TYPES } from "@/types/privacy";
+import { useUploadConfig } from "@/hooks/usePrivacyConfig";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Settings2 } from "lucide-react";
 
 export default function NewConfig() {
+  const router = useRouter();
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [configName, setConfigName] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const uploadConfig = useUploadConfig();
 
   const handleTypeToggle = (typeId: string) => {
     const newSelected = new Set(selectedTypes);
@@ -21,127 +30,128 @@ export default function NewConfig() {
   };
 
   const handleSubmit = async () => {
-    try {
-      if (!configName) {
-        setError("Please provide a configuration name");
-        return;
-      }
-
-      const content = {
-        NSPrivacyAccessedAPITypes: Array.from(selectedTypes),
-      };
-
-      const response = await fetch("/api/privacy-files", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          filename: `${configName}.json`,
-          content,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to save configuration");
-
-      setSuccess("Configuration saved successfully!");
-      setError("");
-      setConfigName("");
-      setSelectedTypes(new Set());
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Failed to save configuration");
-      }
-      setSuccess("");
+    if (!configName) {
+      return;
     }
+
+    uploadConfig.mutate(
+      {
+        filename: `${configName}.json`,
+        content: {
+          NSPrivacyAccessedAPITypes: Array.from(selectedTypes),
+        },
+      },
+      {
+        onSuccess: () => {
+          router.push("/configurations");
+        },
+      }
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            New Privacy Configuration
-          </h1>
-          <Link
-            href="/"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            ← Back to Home
-          </Link>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+              <Settings2 className="w-6 h-6 text-blue-600 dark:text-blue-300" />
+            </div>
+            <h1 className="text-3xl font-bold text-foreground">
+              New Privacy Configuration
+            </h1>
+          </div>
+          <Button variant="ghost" asChild>
+            <Link href="/" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Home
+            </Link>
+          </Button>
         </div>
 
-        {(error || success) && (
-          <div
-            className={`p-4 mb-6 rounded-md ${
-              error
-                ? "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                : "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-            }`}
-          >
-            {error || success}
-          </div>
+        {uploadConfig.error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>
+              {uploadConfig.error instanceof Error
+                ? uploadConfig.error.message
+                : "Failed to save configuration"}
+            </AlertDescription>
+          </Alert>
         )}
 
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">
-          <div className="mb-6">
-            <label
-              htmlFor="configName"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Configuration Name
-            </label>
-            <input
-              type="text"
-              id="configName"
-              value={configName}
-              onChange={(e) => setConfigName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              placeholder="my-app-privacy-config"
-            />
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="configName">Configuration Name</Label>
+                <Input
+                  id="configName"
+                  value={configName}
+                  onChange={(e) => setConfigName(e.target.value)}
+                  placeholder="my-app-privacy-config"
+                  className="border-input bg-background"
+                />
+              </div>
 
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              Select Privacy API Types
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {PRIVACY_API_TYPES.map((type) => (
-                <div
-                  key={type.id}
-                  className="relative flex items-start p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                >
-                  <div className="min-w-0 flex-1">
-                    <label className="font-medium text-gray-700 dark:text-gray-300">
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.has(type.id)}
-                        onChange={() => handleTypeToggle(type.id)}
-                        className="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      {type.name}
-                    </label>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      {type.description}
-                    </p>
-                  </div>
+              <div className="space-y-4">
+                <h2 className="text-lg font-medium text-foreground">
+                  Select Privacy API Types
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {PRIVACY_API_TYPES.map((type) => (
+                    <Card key={type.id} className="overflow-hidden hover:bg-muted/50 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-start space-x-3 pt-1">
+                          <div className="flex h-6 w-6 items-center justify-center">
+                            <Checkbox
+                              id={type.id}
+                              checked={selectedTypes.has(type.id)}
+                              onCheckedChange={() => handleTypeToggle(type.id)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label
+                              htmlFor={type.id}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              {type.name}
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              {type.description}
+                            </p>
+                            <a
+                              href={type.documentation}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              View Documentation
+                              <ArrowLeft className="h-3 w-3 rotate-180" />
+                            </a>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div className="mt-6">
-            <button
-              onClick={handleSubmit}
-              className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Save Configuration
-            </button>
-          </div>
-        </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSubmit}
+                  disabled={uploadConfig.isPending || !configName}
+                  className="w-full sm:w-auto"
+                >
+                  {uploadConfig.isPending ? "Saving..." : "Save Configuration"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+
   );
 }
